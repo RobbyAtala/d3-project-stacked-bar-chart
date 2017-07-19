@@ -1,0 +1,171 @@
+<!Doctype html>
+<html>
+<head>
+  <script src="http://d3js.org/d3.v3.min.js"></script>
+  <script src="//cdnjs.cloudflare.com/ajax/libs/d3-legend/1.1.0/d3-legend.js"></script>
+  <style>
+
+    p {
+      background-color:lightsteelblue;
+      color: blue;
+      font-size:16px;
+      font-weight:bold;
+    }
+
+    .tooltip {
+
+                background-color: lightsteelblue;
+                border-radius: 6px;
+                padding: 5px;
+                /* Position the tooltip */
+                position: absolute;
+                z-index: 1;
+                text-align:center;
+                font-family: "Gill Sans", Impact, sans-serif;
+                font-size: 16px;
+               /* -webkit-transform: translateZ(1000); /* webkit flicker fix */
+              /*  -webkit-font-smoothing: antialiased; */
+    }
+
+    .svg_container {
+      background-color:lightgrey;
+    }
+
+  </style>
+</head>
+<body>
+
+  <p></p>
+  <script>
+
+  var outerWidth = 800;
+  var outerHeight = 400;
+  var margin = {left:90, right:300, top:30, bottom:90};
+  var innerWidth = outerWidth - margin.right - margin.left;
+  var innerHeight = outerHeight - margin.top - margin.bottom;
+
+  var tooltip = d3.select("body").append("div").attr("class","tooltip")
+                                   .style("position","absolute")
+                                   .style("z-index","1000")
+
+
+  var div_svg = d3.select("body").append("div")
+                 .attr("class","svg_container")
+
+  var svg = d3.select(".svg_container").append("svg")
+                .attr("width",outerWidth)
+                .attr("height",outerHeight)
+                .append("g")
+                .attr("transform","translate("+margin.left+","+margin.top+")");
+
+
+  var xScale = d3.scale.ordinal().rangeRoundBands([0,innerWidth],0.2);
+  var yScale = d3.scale.linear().range([innerHeight,0]);
+  var colorScale = d3.scale.category10();
+
+  function draw(data) {
+
+    //console.log(JSON.stringify(data,null,2));
+    //debugger;
+
+    var val = ["$0","$1-24999","$25000-49999","$50000-74999","$75000-99999",
+               "$100000+","Not displayed","Not employed"];
+
+    layer = []
+    data.forEach(function(d){
+    var temp = [];
+    val.forEach(function(v){
+
+    temp.push({y:+d[v], x:v, value:d["LoanStatus"]});
+            });
+    layer.push(temp);
+            });
+
+
+
+    var stack = d3.layout.stack();
+    stack(layer);
+
+   xScale.domain(layer[0].map(function(d){
+        return d.x;
+            }))
+
+    yScale.domain([0,d3.max(layer,function(sublay){
+        return d3.max(sublay,function(d){
+            return d.y0 + d.y;
+            })
+        })]);
+
+    colorScale.domain(layer.map(function(d){
+        return d[0]["value"];
+        }));
+
+
+
+   var groups = svg.selectAll("g")
+                    .data(layer)
+                    .enter()
+                    .append("g")
+                    .style("fill",function(d){
+                    return colorScale(d[0]["value"]);
+                   });
+
+
+
+   var rects = groups.selectAll("rect")
+                      .data(function(d){return d;})
+                      .enter()
+
+                      .append("rect")
+                      .attr("x",function(d){
+                        return xScale(d.x);
+                      })
+                      .attr("y",function(d){
+                        return yScale(d.y0 + d.y);
+                      })
+                      .attr("height",function(d){
+                        return innerHeight-yScale(d.y);
+                      })
+                      .attr("width",xScale.rangeBand())
+                      .on("mouseover",function(d){return tooltip.style("visibility","visible").text(d.value + ": " + d.y + "%");})
+                      .on("mouseout",function(d){return tooltip.style("visibility","hidden");});
+
+
+    var xAxis = d3.svg.axis().scale(xScale).orient("bottom")
+                    .outerTickSize(0);
+
+    svg.append("g")
+       .attr("transform","translate(0,"+innerHeight+")")
+       .call(xAxis)
+       .selectAll("text")
+       .attr("transform","rotate(-50)")
+       .attr("dx","-.8em")
+       .attr("dy",".25em")
+       .style("text-anchor","end");
+
+
+    var colorLegendG = svg.append("g")
+                          .attr("class","color-legend")
+                          .attr("transform","translate(500,50)")
+
+    var colorLegend = d3.legend.color()
+                        .scale(colorScale)
+                        .shapePadding(3)
+                        .shapeWidth(15)
+                        .shapeHeight(15)
+                        .labelOffset(4);
+
+    colorLegendG.call(colorLegend);
+
+    var write = d3.select("p")
+                  .text("This stacked bar chart displays the Loan Status share as a percentage for each Income Range category. The data comes from the Prosper Loan dataset. The income range is displayed along the x axis. The legend displays the color for each loan status.");
+
+   }
+
+
+    d3.csv("LoanStatusStack.csv",draw)
+</script>
+
+
+</body>
+</html>
